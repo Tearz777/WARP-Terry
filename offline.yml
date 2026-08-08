@@ -1,0 +1,10 @@
+patches:
+    - RestoreClientInfo
+    - DataFolderFirst
+    - RestoreLoginWindow
+    - No1and1Arg
+    - NoHardCodedIP
+    - NoGNJoyLaunch
+    - NoNagle
+    - SkipServiceSelect
+    - HideLicense
