@@ -1,3 +1,16 @@
+inputs:
+    $newItemInfo:
+        data: '53797374656d2f6974656d696e666f5f454e2e6c756100'
+        display: "System/iteminfo_EN.lua"
+
+    $newPrivAirplane:
+        data: '53797374656d5c50726976617465416972706c616e655f545f454e2e6c756200'
+        display: "System\\PrivateAirplane_T_EN.lub"
+
+    $newPetEvoCln:
+        data: '73797374656d5c50657445766f6c7574696f6e436c6e5f747275655f452e6c756200'
+        display: "system\\PetEvolutionCln_true_E.lub"
+
 patches:
     - RestoreClientInfo
     - DataFolderFirst
@@ -8,3 +21,6 @@ patches:
     - NoNagle
     - SkipServiceSelect
     - HideLicense
+    - CustomItemInfoLub
+    - CustomPetEvoClnLub
+    - CustomPrivAirplaneLub
