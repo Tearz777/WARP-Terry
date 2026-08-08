@@ -1,0 +1,23 @@
+name: Test WARP Console
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-warp:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show WARP files
+        shell: cmd
+        run: |
+          dir
+          dir win32
+
+      - name: Test WARP Console
+        shell: cmd
+        run: |
+          win32\WARP_console.exe --help
