@@ -28,7 +28,7 @@ jobs:
         shell: cmd
         run: |
           win32\WARP_console.exe ^
-            -using Patches.yml ^
+            -using offline.yml ^
             -from Uploads\2021-11-03_Ragexe_1635926200.exe ^
             -to Ragexe_patched.exe
 
