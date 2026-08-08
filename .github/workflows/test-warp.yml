@@ -8,28 +8,94 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify Ragexe
+      - name: Verify original Ragexe
         shell: powershell
         run: |
-          Get-FileHash "Uploads\2021-11-03_Ragexe_1635926200.exe" -Algorithm SHA256
+          $file = "Uploads\2021-11-03_Ragexe_1635926200.exe"
 
-      - name: Try WARP
+          if (!(Test-Path $file)) {
+            Write-Error "Original Ragexe tidak ditemukan: $file"
+            exit 1
+          }
+
+          Get-Item $file | Select-Object Name, Length
+          Get-FileHash $file -Algorithm SHA256
+
+      - name: Run WARP
         shell: cmd
         run: |
-          win32\WARP_console.exe -using Patches.yml -from Uploads\2021-11-03_Ragexe_1635926200.exe -to Ragexe_patched.exe
+          win32\WARP_console.exe ^
+            -using Patches.yml ^
+            -from Uploads\2021-11-03_Ragexe_1635926200.exe ^
+            -to Ragexe_patched.exe
 
-      - name: Show result
-        if: always()
-        shell: cmd
+      - name: Verify patched Ragexe
+        shell: powershell
         run: |
-          dir Ragexe*.exe
+          if (!(Test-Path "Ragexe_patched.exe")) {
+            Write-Error "WARP tidak menghasilkan Ragexe_patched.exe"
+            exit 1
+          }
+
+          Get-Item "Ragexe_patched.exe" |
+            Select-Object Name, Length
+
+          Get-FileHash "Ragexe_patched.exe" -Algorithm SHA256
+
+      - name: Analyze binary changes
+        shell: powershell
+        run: |
+          $originalPath = "Uploads\2021-11-03_Ragexe_1635926200.exe"
+          $patchedPath  = "Ragexe_patched.exe"
+
+          $a = [IO.File]::ReadAllBytes($originalPath)
+          $b = [IO.File]::ReadAllBytes($patchedPath)
+
+          Write-Host "================================="
+          Write-Host "        WARP PATCH ANALYSIS"
+          Write-Host "================================="
+          Write-Host "Original size : $($a.Length) bytes"
+          Write-Host "Patched size  : $($b.Length) bytes"
+
+          $min = [Math]::Min($a.Length, $b.Length)
+
+          $different = 0
+          $firstDiff = -1
+          $lastDiff = -1
+
+          for ($i = 0; $i -lt $min; $i++) {
+            if ($a[$i] -ne $b[$i]) {
+              $different++
+
+              if ($firstDiff -eq -1) {
+                $firstDiff = $i
+              }
+
+              $lastDiff = $i
+            }
+          }
+
+          $sizeDifference = $b.Length - $a.Length
+
+          Write-Host "Different bytes : $different"
+          Write-Host "Size difference : $sizeDifference bytes"
+
+          if ($firstDiff -ge 0) {
+            Write-Host "First difference: 0x$($firstDiff.ToString('X'))"
+            Write-Host "Last difference : 0x$($lastDiff.ToString('X'))"
+          }
+
+          if (($different -eq 0) -and ($sizeDifference -eq 0)) {
+            Write-Error "WARP menghasilkan file identik. Tidak ada patch yang diterapkan."
+            exit 1
+          }
 
       - name: Upload patched Ragexe
-        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Ragexe-20211103-patched
+          name: Ragexe-20211103-WARP
           path: Ragexe_patched.exe
+          if-no-files-found: error
