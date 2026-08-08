@@ -1,23 +1,35 @@
-name: Test WARP Console
+name: Patch Ragexe with WARP
 
 on:
   workflow_dispatch:
 
 jobs:
-  test-warp:
+  patch:
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show WARP files
-        shell: cmd
+      - name: Verify Ragexe
+        shell: powershell
         run: |
-          dir
-          dir win32
+          Get-FileHash "Uploads\2021-11-03_Ragexe_1635926200.exe" -Algorithm SHA256
 
-      - name: Test WARP Console
+      - name: Try WARP
         shell: cmd
         run: |
-          win32\WARP_console.exe --help
+          win32\WARP_console.exe -using Patches.yml -from Uploads\2021-11-03_Ragexe_1635926200.exe -to Ragexe_patched.exe
+
+      - name: Show result
+        if: always()
+        shell: cmd
+        run: |
+          dir Ragexe*.exe
+
+      - name: Upload patched Ragexe
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ragexe-20211103-patched
+          path: Ragexe_patched.exe
