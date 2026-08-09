@@ -1,0 +1,173 @@
+name: Test WARP Custom Paths
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify inputs
+        shell: powershell
+        run: |
+          $exe = "Uploads\2021-11-03_Ragexe_1635926200.exe"
+
+          if (!(Test-Path $exe)) {
+            Write-Error "Original Ragexe tidak ditemukan: $exe"
+            exit 1
+          }
+
+          Write-Host "=== ORIGINAL EXE ==="
+          Get-Item $exe | Select-Object Name, Length
+          Get-FileHash $exe -Algorithm SHA256
+
+          Write-Host ""
+          Write-Host "=== OFFLINE.YML CUSTOM PATHS ==="
+          Get-Content "offline.yml" |
+            Select-String '\$new|Custom'
+
+      - name: Run WARP
+        shell: cmd
+        run: |
+          win32\WARP_console.exe ^
+            -using offline.yml ^
+            -from Uploads\2021-11-03_Ragexe_1635926200.exe ^
+            -to Ragexe_patched.exe
+
+      - name: Analyze patched EXE
+        shell: powershell
+        run: |
+          if (!(Test-Path "Ragexe_patched.exe")) {
+            Write-Error "WARP tidak menghasilkan Ragexe_patched.exe"
+            exit 1
+          }
+
+          $original = [IO.File]::ReadAllBytes(
+            "Uploads\2021-11-03_Ragexe_1635926200.exe"
+          )
+          $patched = [IO.File]::ReadAllBytes(
+            "Ragexe_patched.exe"
+          )
+
+          Write-Host "=== PATCH ANALYSIS ==="
+          Write-Host "Original size : $($original.Length)"
+          Write-Host "Patched size  : $($patched.Length)"
+
+          $min = [Math]::Min($original.Length, $patched.Length)
+          $different = 0
+          $firstDiff = -1
+          $lastDiff = -1
+
+          for ($i = 0; $i -lt $min; $i++) {
+            if ($original[$i] -ne $patched[$i]) {
+              $different++
+
+              if ($firstDiff -eq -1) {
+                $firstDiff = $i
+              }
+
+              $lastDiff = $i
+            }
+          }
+
+          Write-Host "Different bytes : $different"
+          Write-Host "Size difference : $($patched.Length - $original.Length)"
+
+          if ($firstDiff -ge 0) {
+            Write-Host "First difference: 0x$($firstDiff.ToString('X'))"
+            Write-Host "Last difference : 0x$($lastDiff.ToString('X'))"
+          }
+
+      - name: Audit Lua paths inside patched EXE
+        shell: powershell
+        run: |
+          $bytes = [IO.File]::ReadAllBytes("Ragexe_patched.exe")
+          $text = [Text.Encoding]::ASCII.GetString($bytes)
+
+          $strings = @(
+            "iteminfo_Sak.lub",
+            "iteminfo_EN.lua",
+
+            "Achievement_list.lub",
+            "achievement_list_EN.lub",
+
+            "Towninfo.lub",
+            "Towninfo_EN.lub",
+
+            "PetEvolutionCln_sak.lub",
+            "PetEvolutionCln_true_E.lub",
+
+            "tipbox.lub",
+            "tipbox_EN.lub",
+
+            "CheckAttendance.lub",
+            "CheckAttendance_EN.lub",
+
+            "PrivateAirplane_Sakray.lub",
+            "PrivateAirplane_T_EN.lub",
+
+            "mapInfo_sak.lub",
+            "mapInfo_true_EN.lub",
+
+            "OngoingQuestInfoList_Sakray",
+            "OngoingQuestInfoList_True_EN",
+
+            "RecommendedQuestInfoList_Sakray",
+            "RecommendedQuestInfoList_True_EN"
+          )
+
+          Write-Host "======================================"
+          Write-Host "      LUA PATH STRING AUDIT"
+          Write-Host "======================================"
+
+          foreach ($s in $strings) {
+            if ($text.Contains($s)) {
+              Write-Host "FOUND   $s"
+            }
+            else {
+              Write-Host "MISSING $s"
+            }
+          }
+
+      - name: Show relevant strings
+        shell: powershell
+        run: |
+          $bytes = [IO.File]::ReadAllBytes("Ragexe_patched.exe")
+          $text = [Text.Encoding]::ASCII.GetString($bytes)
+
+          Write-Host "=== RELEVANT ASCII STRINGS ==="
+
+          [regex]::Matches(
+            $text,
+            '[ -~]{5,}'
+          ) |
+          ForEach-Object {
+            $_.Value
+          } |
+          Where-Object {
+            $_ -match 'iteminfo|achievement|Towninfo|PetEvolution|tipbox|CheckAttendance|PrivateAirplane|mapInfo|QuestInfo'
+          } |
+          Sort-Object -Unique
+
+      - name: Hash patched EXE
+        shell: powershell
+        run: |
+          Write-Host "=== PATCHED EXE ==="
+          Get-Item "Ragexe_patched.exe" |
+            Select-Object Name, Length
+
+          Get-FileHash "Ragexe_patched.exe" -Algorithm SHA256
+
+      - name: Upload patched Ragexe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ragexe-custom-path-test
+          path: Ragexe_patched.exe
+          if-no-files-found: error
